@@ -1,0 +1,783 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EV-Ladepreis Vergleich</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/recharts/2.10.3/Recharts.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/lucide/0.294.0/umd/lucide.min.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    .loading {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      font-size: 1.2rem;
+      color: #6b7280;
+    }
+  </style>
+</head>
+<body>
+  <div id="root"><div class="loading">Lade Tarife...</div></div>
+
+  <script type="text/babel">
+    const { useState, useEffect } = React;
+    const { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceArea } = Recharts;
+
+    const COLORS = ['#2563eb', '#dc2626', '#16a34a', '#ca8a04', '#9333ea', '#0891b2', '#be185d', '#84cc16'];
+
+    // Icon components
+    const Plus = ({ size = 24 }) => (
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <line x1="12" y1="5" x2="12" y2="19"></line>
+        <line x1="5" y1="12" x2="19" y2="12"></line>
+      </svg>
+    );
+
+    const Trash2 = ({ size = 24 }) => (
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <polyline points="3 6 5 6 21 6"></polyline>
+        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+        <line x1="10" y1="11" x2="10" y2="17"></line>
+        <line x1="14" y1="11" x2="14" y2="17"></line>
+      </svg>
+    );
+
+    const Download = ({ size = 24 }) => (
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+        <polyline points="7 10 12 15 17 10"></polyline>
+        <line x1="12" y1="15" x2="12" y2="3"></line>
+      </svg>
+    );
+
+    const Upload = ({ size = 24 }) => (
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+        <polyline points="17 8 12 3 7 8"></polyline>
+        <line x1="12" y1="3" x2="12" y2="15"></line>
+      </svg>
+    );
+
+    const Eye = ({ size = 24 }) => (
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+        <circle cx="12" cy="12" r="3"></circle>
+      </svg>
+    );
+
+    const EyeOff = ({ size = 24 }) => (
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path>
+        <line x1="1" y1="1" x2="23" y2="23"></line>
+      </svg>
+    );
+
+    const RefreshCw = ({ size = 24 }) => (
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <polyline points="23 4 23 10 17 10"></polyline>
+        <polyline points="1 20 1 14 7 14"></polyline>
+        <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+      </svg>
+    );
+
+    function EVChargeComparison() {
+      const [subscriptions, setSubscriptions] = useState([]);
+      const [maxKwh, setMaxKwh] = useState(200);
+      const [newSub, setNewSub] = useState({ name: '', monthlyFee: '', kwhPrice: '' });
+      const [loading, setLoading] = useState(true);
+      const [error, setError] = useState(null);
+      
+      // Zoom state for price chart
+      const [priceZoom, setPriceZoom] = useState({ left: null, right: null, refLeft: '', refRight: '', zooming: false });
+      const [priceXDomain, setPriceXDomain] = useState([0, null]);
+      const [priceYDomain, setPriceYDomain] = useState(['auto', 'auto']);
+      
+      // Zoom state for total chart
+      const [totalZoom, setTotalZoom] = useState({ left: null, right: null, refLeft: '', refRight: '', zooming: false });
+      const [totalXDomain, setTotalXDomain] = useState([0, null]);
+      const [totalYDomain, setTotalYDomain] = useState(['auto', 'auto']);
+
+      // Load default tariffs on mount
+      useEffect(() => {
+        loadDefaultTariffs();
+      }, []);
+
+      const loadDefaultTariffs = async () => {
+        setLoading(true);
+        setError(null);
+        try {
+          const response = await fetch('./tarife.json');
+          if (!response.ok) {
+            throw new Error('Tarife konnten nicht geladen werden');
+          }
+          const data = await response.json();
+          const loadedSubs = data.map((sub, idx) => ({
+            id: Date.now() + idx,
+            name: sub.name,
+            monthlyFee: sub.monthlyFee || 0,
+            kwhPrice: sub.kwhPrice,
+            enabled: sub.enabled !== false
+          }));
+          setSubscriptions(loadedSubs);
+        } catch (err) {
+          setError(err.message);
+          // Fallback to hardcoded defaults
+          setSubscriptions([
+            { id: 1, name: 'Ohne Abo (ADAC)', monthlyFee: 0, kwhPrice: 0.51, enabled: true },
+            { id: 2, name: 'ADAC e-Charge', monthlyFee: 4.99, kwhPrice: 0.39, enabled: true },
+            { id: 3, name: 'EnBW mobility+', monthlyFee: 5.99, kwhPrice: 0.39, enabled: true },
+            { id: 4, name: 'Maingau EinfachStromLaden', monthlyFee: 0, kwhPrice: 0.44, enabled: true },
+          ]);
+        } finally {
+          setLoading(false);
+        }
+      };
+
+      const addSubscription = () => {
+        if (newSub.name && newSub.kwhPrice !== '') {
+          setSubscriptions([
+            ...subscriptions,
+            {
+              id: Date.now(),
+              name: newSub.name,
+              monthlyFee: parseFloat(newSub.monthlyFee) || 0,
+              kwhPrice: parseFloat(newSub.kwhPrice) || 0,
+              enabled: true,
+            },
+          ]);
+          setNewSub({ name: '', monthlyFee: '', kwhPrice: '' });
+        }
+      };
+
+      const removeSubscription = (id) => {
+        setSubscriptions(subscriptions.filter((s) => s.id !== id));
+      };
+
+      const toggleSubscription = (id) => {
+        setSubscriptions(
+          subscriptions.map((s) =>
+            s.id === id ? { ...s, enabled: !s.enabled } : s
+          )
+        );
+      };
+
+      const updateSubscription = (id, field, value) => {
+        setSubscriptions(
+          subscriptions.map((s) =>
+            s.id === id ? { ...s, [field]: field === 'name' ? value : parseFloat(value) || 0 } : s
+          )
+        );
+      };
+
+      // Get only enabled subscriptions for charts
+      const enabledSubscriptions = subscriptions.filter(s => s.enabled);
+
+      // Generate chart data
+      const chartData = [];
+      for (let kwh = 0; kwh <= maxKwh; kwh += 5) {
+        const point = { kwh };
+        subscriptions.forEach((sub) => {
+          const totalCost = sub.monthlyFee + kwh * sub.kwhPrice;
+          point[`${sub.name}_total`] = parseFloat(totalCost.toFixed(2));
+          if (kwh === 0) {
+            point[sub.name] = null;
+          } else {
+            point[sub.name] = parseFloat((totalCost / kwh).toFixed(4));
+          }
+        });
+        chartData.push(point);
+      }
+
+      // Calculate cheapest plan for each kWh range
+      const calculateCheapestSegments = () => {
+        if (enabledSubscriptions.length === 0) return [];
+        
+        const segments = [];
+        let currentCheapest = null;
+        let segmentStart = 0;
+        
+        for (let kwh = 1; kwh <= maxKwh; kwh++) {
+          let cheapest = null;
+          let cheapestCost = Infinity;
+          
+          enabledSubscriptions.forEach((sub) => {
+            const totalCost = sub.monthlyFee + kwh * sub.kwhPrice;
+            if (totalCost < cheapestCost) {
+              cheapestCost = totalCost;
+              cheapest = sub;
+            }
+          });
+          
+          if (currentCheapest === null) {
+            currentCheapest = cheapest;
+            segmentStart = kwh;
+          } else if (cheapest.id !== currentCheapest.id) {
+            segments.push({
+              start: segmentStart,
+              end: kwh - 1,
+              plan: currentCheapest,
+              color: COLORS[subscriptions.findIndex(s => s.id === currentCheapest.id) % COLORS.length]
+            });
+            currentCheapest = cheapest;
+            segmentStart = kwh;
+          }
+        }
+        
+        if (currentCheapest) {
+          segments.push({
+            start: segmentStart,
+            end: maxKwh,
+            plan: currentCheapest,
+            color: COLORS[subscriptions.findIndex(s => s.id === currentCheapest.id) % COLORS.length]
+          });
+        }
+        
+        return segments;
+      };
+      
+      const cheapestSegments = calculateCheapestSegments();
+
+      // Zoom handlers for price chart
+      const handlePriceMouseDown = (e) => {
+        if (e && e.activeLabel !== undefined) {
+          setPriceZoom({ ...priceZoom, refLeft: e.activeLabel, zooming: true });
+        }
+      };
+
+      const handlePriceMouseMove = (e) => {
+        if (priceZoom.zooming && e && e.activeLabel !== undefined) {
+          setPriceZoom({ ...priceZoom, refRight: e.activeLabel });
+        }
+      };
+
+      const handlePriceMouseUp = () => {
+        if (priceZoom.refLeft !== '' && priceZoom.refRight !== '' && priceZoom.refLeft !== priceZoom.refRight) {
+          const left = Math.min(priceZoom.refLeft, priceZoom.refRight);
+          const right = Math.max(priceZoom.refLeft, priceZoom.refRight);
+          
+          const zoomedData = chartData.filter(d => d.kwh >= left && d.kwh <= right);
+          let minY = Infinity, maxY = -Infinity;
+          zoomedData.forEach(point => {
+            subscriptions.forEach(sub => {
+              const val = point[sub.name];
+              if (val !== null && val !== undefined) {
+                minY = Math.min(minY, val);
+                maxY = Math.max(maxY, val);
+              }
+            });
+          });
+          const padding = (maxY - minY) * 0.1;
+          
+          setPriceXDomain([left, right]);
+          setPriceYDomain([Math.max(0, minY - padding), maxY + padding]);
+        }
+        setPriceZoom({ left: null, right: null, refLeft: '', refRight: '', zooming: false });
+      };
+
+      const resetPriceZoom = () => {
+        setPriceXDomain([0, null]);
+        setPriceYDomain(['auto', 'auto']);
+      };
+
+      // Zoom handlers for total chart
+      const handleTotalMouseDown = (e) => {
+        if (e && e.activeLabel !== undefined) {
+          setTotalZoom({ ...totalZoom, refLeft: e.activeLabel, zooming: true });
+        }
+      };
+
+      const handleTotalMouseMove = (e) => {
+        if (totalZoom.zooming && e && e.activeLabel !== undefined) {
+          setTotalZoom({ ...totalZoom, refRight: e.activeLabel });
+        }
+      };
+
+      const handleTotalMouseUp = () => {
+        if (totalZoom.refLeft !== '' && totalZoom.refRight !== '' && totalZoom.refLeft !== totalZoom.refRight) {
+          const left = Math.min(totalZoom.refLeft, totalZoom.refRight);
+          const right = Math.max(totalZoom.refLeft, totalZoom.refRight);
+          
+          const zoomedData = chartData.filter(d => d.kwh >= left && d.kwh <= right);
+          let minY = Infinity, maxY = -Infinity;
+          zoomedData.forEach(point => {
+            subscriptions.forEach(sub => {
+              const val = point[`${sub.name}_total`];
+              if (val !== null && val !== undefined) {
+                minY = Math.min(minY, val);
+                maxY = Math.max(maxY, val);
+              }
+            });
+          });
+          const padding = (maxY - minY) * 0.1;
+          
+          setTotalXDomain([left, right]);
+          setTotalYDomain([Math.max(0, minY - padding), maxY + padding]);
+        }
+        setTotalZoom({ left: null, right: null, refLeft: '', refRight: '', zooming: false });
+      };
+
+      const resetTotalZoom = () => {
+        setTotalXDomain([0, null]);
+        setTotalYDomain(['auto', 'auto']);
+      };
+
+      // Export subscriptions to JSON
+      const exportSubscriptions = () => {
+        const exportData = subscriptions.map(({ id, ...rest }) => rest);
+        const jsonString = JSON.stringify(exportData, null, 2);
+        const blob = new Blob([jsonString], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = 'ladetarife.json';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+      };
+
+      // Import subscriptions from JSON
+      const importSubscriptions = (event) => {
+        const file = event.target.files?.[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          try {
+            const imported = JSON.parse(e.target.result);
+            if (Array.isArray(imported)) {
+              const validatedSubs = imported
+                .filter(sub => sub.name && typeof sub.kwhPrice === 'number')
+                .map((sub, idx) => ({
+                  id: Date.now() + idx,
+                  name: sub.name,
+                  monthlyFee: typeof sub.monthlyFee === 'number' ? sub.monthlyFee : 0,
+                  kwhPrice: sub.kwhPrice,
+                  enabled: sub.enabled !== false,
+                }));
+              if (validatedSubs.length > 0) {
+                setSubscriptions(validatedSubs);
+                resetPriceZoom();
+                resetTotalZoom();
+              } else {
+                alert('Keine gültigen Tarife in der Datei gefunden.');
+              }
+            } else {
+              alert('Ungültiges Dateiformat. Erwartet wird ein JSON-Array.');
+            }
+          } catch (err) {
+            alert('Fehler beim Lesen der Datei: ' + err.message);
+          }
+        };
+        reader.readAsText(file);
+        event.target.value = '';
+      };
+
+      if (loading) {
+        return (
+          <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+            <div className="text-gray-600 text-lg">Lade Tarife...</div>
+          </div>
+        );
+      }
+
+      return (
+        <div className="min-h-screen bg-gray-50 p-6">
+          <div className="max-w-6xl mx-auto">
+            <h1 className="text-3xl font-bold text-gray-800 mb-2">EV-Ladepreis Vergleich</h1>
+            <p className="text-gray-600 mb-6">
+              Vergleiche die effektiven Kosten pro kWh verschiedener Ladeanbieter basierend auf deinem monatlichen Verbrauch.
+            </p>
+
+            {error && (
+              <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg text-yellow-800 text-sm">
+                Hinweis: {error}. Standardtarife wurden geladen.
+              </div>
+            )}
+
+            {/* Price per kWh Chart */}
+            <div className="bg-white rounded-xl shadow-sm p-6 mb-6">
+              <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+                <h2 className="text-lg font-semibold text-gray-700">Effektiver Preis pro kWh</h2>
+                <div className="flex items-center gap-4 flex-wrap">
+                  <span className="text-xs text-gray-500">Zum Zoomen Bereich auswählen</span>
+                  {(priceXDomain[0] !== 0 || priceXDomain[1] !== null) && (
+                    <button
+                      onClick={resetPriceZoom}
+                      className="px-3 py-1 text-sm bg-gray-100 hover:bg-gray-200 rounded transition-colors"
+                    >
+                      Zoom zurücksetzen
+                    </button>
+                  )}
+                  <div className="flex items-center gap-2">
+                    <label className="text-sm text-gray-600">Max kWh:</label>
+                    <input
+                      type="number"
+                      value={maxKwh}
+                      onChange={(e) => setMaxKwh(parseInt(e.target.value) || 100)}
+                      className="w-20 px-2 py-1 border border-gray-300 rounded text-sm"
+                    />
+                  </div>
+                </div>
+              </div>
+              <ResponsiveContainer width="100%" height={400}>
+                <LineChart 
+                  data={chartData} 
+                  margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+                  onMouseDown={handlePriceMouseDown}
+                  onMouseMove={handlePriceMouseMove}
+                  onMouseUp={handlePriceMouseUp}
+                  onMouseLeave={() => setPriceZoom({ left: null, right: null, refLeft: '', refRight: '', zooming: false })}
+                >
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                  <XAxis
+                    dataKey="kwh"
+                    label={{ value: 'kWh geladen pro Monat', position: 'insideBottom', offset: -5 }}
+                    stroke="#6b7280"
+                    domain={priceXDomain}
+                    allowDataOverflow
+                    type="number"
+                  />
+                  <YAxis
+                    label={{ value: '€/kWh', angle: -90, position: 'insideLeft' }}
+                    stroke="#6b7280"
+                    domain={priceYDomain}
+                    allowDataOverflow
+                    tickFormatter={(v) => v.toFixed(2)}
+                  />
+                  <Tooltip
+                    formatter={(value, name) => [`${value?.toFixed(3)} €/kWh`, name]}
+                    labelFormatter={(label) => `${label} kWh/Monat`}
+                    contentStyle={{ backgroundColor: 'white', border: '1px solid #e5e7eb', borderRadius: '8px' }}
+                  />
+                  <Legend />
+                  {enabledSubscriptions.map((sub) => {
+                    const idx = subscriptions.findIndex(s => s.id === sub.id);
+                    return (
+                      <Line
+                        key={sub.id}
+                        type="monotone"
+                        dataKey={sub.name}
+                        stroke={COLORS[idx % COLORS.length]}
+                        strokeWidth={2}
+                        dot={false}
+                        connectNulls
+                      />
+                    );
+                  })}
+                  {priceZoom.refLeft && priceZoom.refRight && (
+                    <ReferenceArea
+                      x1={priceZoom.refLeft}
+                      x2={priceZoom.refRight}
+                      strokeOpacity={0.3}
+                      fill="#2563eb"
+                      fillOpacity={0.2}
+                    />
+                  )}
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+
+            {/* Total Cost Chart */}
+            <div className="bg-white rounded-xl shadow-sm p-6 mb-6">
+              <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+                <h2 className="text-lg font-semibold text-gray-700">Gesamtkosten pro Monat</h2>
+                <div className="flex items-center gap-4">
+                  <span className="text-xs text-gray-500">Zum Zoomen Bereich auswählen</span>
+                  {(totalXDomain[0] !== 0 || totalXDomain[1] !== null) && (
+                    <button
+                      onClick={resetTotalZoom}
+                      className="px-3 py-1 text-sm bg-gray-100 hover:bg-gray-200 rounded transition-colors"
+                    >
+                      Zoom zurücksetzen
+                    </button>
+                  )}
+                </div>
+              </div>
+              <ResponsiveContainer width="100%" height={350}>
+                <LineChart 
+                  data={chartData} 
+                  margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+                  onMouseDown={handleTotalMouseDown}
+                  onMouseMove={handleTotalMouseMove}
+                  onMouseUp={handleTotalMouseUp}
+                  onMouseLeave={() => setTotalZoom({ left: null, right: null, refLeft: '', refRight: '', zooming: false })}
+                >
+                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                  <XAxis
+                    dataKey="kwh"
+                    label={{ value: 'kWh geladen pro Monat', position: 'insideBottom', offset: -5 }}
+                    stroke="#6b7280"
+                    domain={totalXDomain}
+                    allowDataOverflow
+                    type="number"
+                  />
+                  <YAxis
+                    label={{ value: '€ gesamt', angle: -90, position: 'insideLeft' }}
+                    stroke="#6b7280"
+                    domain={totalYDomain}
+                    allowDataOverflow
+                    tickFormatter={(v) => v.toFixed(0)}
+                  />
+                  <Tooltip
+                    formatter={(value, name) => [`${value?.toFixed(2)} €`, name]}
+                    labelFormatter={(label) => `${label} kWh/Monat`}
+                    contentStyle={{ backgroundColor: 'white', border: '1px solid #e5e7eb', borderRadius: '8px' }}
+                  />
+                  <Legend />
+                  {enabledSubscriptions.map((sub) => {
+                    const idx = subscriptions.findIndex(s => s.id === sub.id);
+                    return (
+                      <Line
+                        key={sub.id}
+                        type="monotone"
+                        dataKey={`${sub.name}_total`}
+                        name={sub.name}
+                        stroke={COLORS[idx % COLORS.length]}
+                        strokeWidth={2}
+                        dot={false}
+                      />
+                    );
+                  })}
+                  {totalZoom.refLeft && totalZoom.refRight && (
+                    <ReferenceArea
+                      x1={totalZoom.refLeft}
+                      x2={totalZoom.refRight}
+                      strokeOpacity={0.3}
+                      fill="#2563eb"
+                      fillOpacity={0.2}
+                    />
+                  )}
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+
+            {/* Cheapest Plan Segments */}
+            {cheapestSegments.length > 0 && (
+              <div className="bg-white rounded-xl shadow-sm p-6 mb-6">
+                <h2 className="text-lg font-semibold text-gray-700 mb-4">Günstigster Tarif nach Verbrauch</h2>
+                <div className="flex rounded-lg overflow-hidden border border-gray-200">
+                  {cheapestSegments.map((segment, idx) => {
+                    const widthPercent = ((segment.end - segment.start + 1) / maxKwh) * 100;
+                    return (
+                      <div
+                        key={idx}
+                        className="relative group"
+                        style={{
+                          width: `${widthPercent}%`,
+                          backgroundColor: segment.color,
+                          minWidth: widthPercent > 5 ? 'auto' : '20px'
+                        }}
+                      >
+                        <div className="h-16 flex items-center justify-center px-2">
+                          {widthPercent > 15 && (
+                            <span className="text-white text-sm font-medium text-center truncate">
+                              {segment.plan.name}
+                            </span>
+                          )}
+                        </div>
+                        <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-gray-900 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10 pointer-events-none">
+                          <div className="font-semibold">{segment.plan.name}</div>
+                          <div>{segment.start} - {segment.end} kWh</div>
+                          <div className="text-gray-300">
+                            {segment.plan.monthlyFee > 0 ? `${segment.plan.monthlyFee.toFixed(2)}€/Monat + ` : ''}
+                            {segment.plan.kwhPrice.toFixed(2)}€/kWh
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                <div className="flex justify-between mt-2 text-xs text-gray-500">
+                  <span>0 kWh</span>
+                  <span>{maxKwh} kWh</span>
+                </div>
+                
+                <div className="mt-4 flex flex-wrap gap-4">
+                  {cheapestSegments.map((segment, idx) => (
+                    <div key={idx} className="flex items-center gap-2 text-sm">
+                      <div
+                        className="w-3 h-3 rounded-full"
+                        style={{ backgroundColor: segment.color }}
+                      />
+                      <span className="text-gray-700">
+                        <strong>{segment.plan.name}</strong>: {segment.start}-{segment.end} kWh
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Subscriptions Table */}
+            <div className="bg-white rounded-xl shadow-sm p-6">
+              <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+                <h2 className="text-lg font-semibold text-gray-700">Tarife verwalten</h2>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <button
+                    onClick={loadDefaultTariffs}
+                    className="flex items-center gap-2 px-3 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 rounded transition-colors"
+                    title="Standardtarife neu laden"
+                  >
+                    <RefreshCw size={16} />
+                    <span>Zurücksetzen</span>
+                  </button>
+                  <label className="flex items-center gap-2 px-3 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 rounded cursor-pointer transition-colors">
+                    <Upload size={16} />
+                    <span>Importieren</span>
+                    <input
+                      type="file"
+                      accept=".json"
+                      onChange={importSubscriptions}
+                      className="hidden"
+                    />
+                  </label>
+                  <button
+                    onClick={exportSubscriptions}
+                    className="flex items-center gap-2 px-3 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 rounded transition-colors"
+                  >
+                    <Download size={16} />
+                    <span>Exportieren</span>
+                  </button>
+                </div>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-gray-200">
+                      <th className="text-left py-3 px-2 text-sm font-medium text-gray-600">Farbe</th>
+                      <th className="text-left py-3 px-2 text-sm font-medium text-gray-600">Anbieter / Tarif</th>
+                      <th className="text-left py-3 px-2 text-sm font-medium text-gray-600">Grundgebühr (€/Monat)</th>
+                      <th className="text-left py-3 px-2 text-sm font-medium text-gray-600">Preis (€/kWh)</th>
+                      <th className="text-left py-3 px-2 text-sm font-medium text-gray-600">Sichtbar</th>
+                      <th className="text-left py-3 px-2 text-sm font-medium text-gray-600"></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {subscriptions.map((sub, idx) => (
+                      <tr key={sub.id} className={`border-b border-gray-100 hover:bg-gray-50 ${!sub.enabled ? 'opacity-50' : ''}`}>
+                        <td className="py-3 px-2">
+                          <div
+                            className="w-4 h-4 rounded-full"
+                            style={{ backgroundColor: COLORS[idx % COLORS.length] }}
+                          />
+                        </td>
+                        <td className="py-3 px-2">
+                          <input
+                            type="text"
+                            value={sub.name}
+                            onChange={(e) => updateSubscription(sub.id, 'name', e.target.value)}
+                            className="w-full px-2 py-1 border border-gray-200 rounded focus:outline-none focus:border-blue-400"
+                          />
+                        </td>
+                        <td className="py-3 px-2">
+                          <input
+                            type="number"
+                            step="0.01"
+                            value={sub.monthlyFee}
+                            onChange={(e) => updateSubscription(sub.id, 'monthlyFee', e.target.value)}
+                            className="w-24 px-2 py-1 border border-gray-200 rounded focus:outline-none focus:border-blue-400"
+                          />
+                        </td>
+                        <td className="py-3 px-2">
+                          <input
+                            type="number"
+                            step="0.01"
+                            value={sub.kwhPrice}
+                            onChange={(e) => updateSubscription(sub.id, 'kwhPrice', e.target.value)}
+                            className="w-24 px-2 py-1 border border-gray-200 rounded focus:outline-none focus:border-blue-400"
+                          />
+                        </td>
+                        <td className="py-3 px-2">
+                          <button
+                            onClick={() => toggleSubscription(sub.id)}
+                            className={`p-1 transition-colors ${sub.enabled ? 'text-blue-500 hover:text-blue-700' : 'text-gray-400 hover:text-gray-600'}`}
+                            title={sub.enabled ? 'Ausblenden' : 'Einblenden'}
+                          >
+                            {sub.enabled ? <Eye size={18} /> : <EyeOff size={18} />}
+                          </button>
+                        </td>
+                        <td className="py-3 px-2">
+                          <button
+                            onClick={() => removeSubscription(sub.id)}
+                            className="p-1 text-gray-400 hover:text-red-500 transition-colors"
+                            title="Tarif entfernen"
+                          >
+                            <Trash2 size={18} />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                    <tr className="bg-gray-50">
+                      <td className="py-3 px-2">
+                        <div className="w-4 h-4 rounded-full bg-gray-300" />
+                      </td>
+                      <td className="py-3 px-2">
+                        <input
+                          type="text"
+                          placeholder="Neuer Tarif..."
+                          value={newSub.name}
+                          onChange={(e) => setNewSub({ ...newSub, name: e.target.value })}
+                          className="w-full px-2 py-1 border border-gray-200 rounded focus:outline-none focus:border-blue-400"
+                        />
+                      </td>
+                      <td className="py-3 px-2">
+                        <input
+                          type="number"
+                          step="0.01"
+                          placeholder="0.00"
+                          value={newSub.monthlyFee}
+                          onChange={(e) => setNewSub({ ...newSub, monthlyFee: e.target.value })}
+                          className="w-24 px-2 py-1 border border-gray-200 rounded focus:outline-none focus:border-blue-400"
+                        />
+                      </td>
+                      <td className="py-3 px-2">
+                        <input
+                          type="number"
+                          step="0.01"
+                          placeholder="0.00"
+                          value={newSub.kwhPrice}
+                          onChange={(e) => setNewSub({ ...newSub, kwhPrice: e.target.value })}
+                          className="w-24 px-2 py-1 border border-gray-200 rounded focus:outline-none focus:border-blue-400"
+                        />
+                      </td>
+                      <td className="py-3 px-2"></td>
+                      <td className="py-3 px-2">
+                        <button
+                          onClick={addSubscription}
+                          className="p-1 text-gray-400 hover:text-green-500 transition-colors"
+                          title="Tarif hinzufügen"
+                        >
+                          <Plus size={18} />
+                        </button>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Explanation */}
+            <div className="mt-6 p-4 bg-blue-50 rounded-lg text-sm text-blue-800">
+              <strong>So funktioniert's:</strong> Der effektive Preis pro kWh berechnet sich aus 
+              (Grundgebühr + kWh × Preis pro kWh) ÷ kWh. Bei geringem Verbrauch sind Tarife ohne 
+              Grundgebühr günstiger, bei hohem Verbrauch lohnen sich Abos mit niedrigerem kWh-Preis.
+            </div>
+
+            <div className="mt-4 text-center text-xs text-gray-400">
+              Preise aus tarife.json geladen • Daten können per Import/Export gespeichert werden
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<EVChargeComparison />);
+  </script>
+</body>
+</html>

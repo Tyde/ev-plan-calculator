@@ -1,0 +1,68 @@
+[
+  {
+    "name": "EnBw S",
+    "monthlyFee": 0,
+    "kwhPrice": 0.56,
+    "enabled": true
+  },
+  {
+    "name": "EnBw M",
+    "monthlyFee": 5.99,
+    "kwhPrice": 0.46,
+    "enabled": true
+  },
+  {
+    "name": "EnBw L / IONITY Power",
+    "monthlyFee": 11.99,
+    "kwhPrice": 0.39,
+    "enabled": true
+  },
+  {
+    "name": "EWE Go",
+    "monthlyFee": 0,
+    "kwhPrice": 0.52,
+    "enabled": true
+  },
+  {
+    "name": "Ionity Go",
+    "monthlyFee": 0,
+    "kwhPrice": 0.7,
+    "enabled": true
+  },
+  {
+    "name": "Ionity Motion",
+    "monthlyFee": 5.99,
+    "kwhPrice": 0.49,
+    "enabled": true
+  },
+  {
+    "name": "Aral pulse app",
+    "monthlyFee": 0,
+    "kwhPrice": 0.69,
+    "enabled": true
+  },
+  {
+    "name": "Aral pulse app Extra",
+    "monthlyFee": 2.99,
+    "kwhPrice": 0.54,
+    "enabled": true
+  },
+  {
+    "name": "ADAC e-charge (Aral)",
+    "monthlyFee": 0,
+    "kwhPrice": 0.55,
+    "enabled": true
+  },
+  {
+    "name": "Aldi Ad-Hoc",
+    "monthlyFee": 0,
+    "kwhPrice": 0.47,
+    "enabled": false
+  },
+  {
+    "name": "Lidl",
+    "monthlyFee": 0,
+    "kwhPrice": 0.44,
+    "enabled": false
+  }
+]
