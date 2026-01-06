@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EV Efficiency Converter</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap');
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f8fafc;
+        }
+
+        .glass-card {
+            background: rgba(255, 255, 255, 0.8);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.07);
+        }
+
+        input::-webkit-outer-spin-button,
+        input::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+
+        .history-item {
+            animation: slideIn 0.3s ease-out;
+        }
+
+        @keyframes slideIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body class="min-h-screen flex items-start justify-center p-4 sm:p-8">
+
+    <div class="max-w-md w-full space-y-6">
+        <!-- Main Converter Card -->
+        <div class="glass-card rounded-3xl p-8 space-y-8">
+            <!-- Header -->
+            <div class="text-center">
+                <div class="inline-flex items-center justify-center w-16 h-16 bg-blue-100 text-blue-600 rounded-2xl mb-4">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+                    </svg>
+                </div>
+                <h1 class="text-2xl font-bold text-slate-800">EV Converter</h1>
+                <p class="text-slate-500 mt-2">Convert between US and European metrics</p>
+            </div>
+
+            <div class="space-y-6">
+                <!-- Mi/kWh to kWh/100km -->
+                <div class="space-y-2">
+                    <label class="text-sm font-semibold text-slate-600 ml-1">Efficiency (mi/kWh)</label>
+                    <div class="relative">
+                        <input 
+                            type="number" 
+                            id="miKwhInput" 
+                            placeholder="e.g. 4.0"
+                            class="w-full px-5 py-4 bg-white border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all text-lg font-medium text-slate-800"
+                        >
+                        <span class="absolute right-5 top-1/2 -translate-y-1/2 text-slate-400 font-medium">mi/kWh</span>
+                    </div>
+                </div>
+
+                <!-- Divider -->
+                <div class="flex items-center justify-center">
+                    <div class="h-px bg-slate-200 flex-grow"></div>
+                    <div class="px-4 text-slate-300">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
+                        </svg>
+                    </div>
+                    <div class="h-px bg-slate-200 flex-grow"></div>
+                </div>
+
+                <!-- kWh/100km to Mi/kWh -->
+                <div class="space-y-2">
+                    <label class="text-sm font-semibold text-slate-600 ml-1">Consumption (kWh/100km)</label>
+                    <div class="relative">
+                        <input 
+                            type="number" 
+                            id="kwh100kmInput" 
+                            placeholder="e.g. 15.5"
+                            class="w-full px-5 py-4 bg-white border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none transition-all text-lg font-medium text-slate-800"
+                        >
+                        <span class="absolute right-5 top-1/2 -translate-y-1/2 text-slate-400 font-medium text-sm">kWh/100km</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Action Buttons -->
+            <button 
+                id="saveBtn"
+                class="w-full bg-slate-800 hover:bg-slate-900 text-white font-semibold py-4 rounded-2xl transition-all active:scale-95 flex items-center justify-center gap-2"
+            >
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                    <path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd" />
+                </svg>
+                Quick Save
+            </button>
+
+            <!-- Math Reference -->
+            <div class="p-4 bg-slate-50 rounded-2xl">
+                <p class="text-[10px] text-slate-400 uppercase tracking-widest font-bold mb-1">Conversion Factor</p>
+                <p class="text-xs text-slate-600 italic">
+                    kWh/100km = 62.137 / (mi/kWh)
+                </p>
+            </div>
+        </div>
+
+        <!-- History Section -->
+        <div id="historySection" class="hidden space-y-4">
+            <div class="flex items-center justify-between px-2">
+                <h2 class="text-sm font-bold text-slate-500 uppercase tracking-wider">History</h2>
+                <button id="clearBtn" class="text-xs text-red-500 hover:text-red-600 font-medium px-2 py-1 rounded-lg hover:bg-red-50 transition-colors">
+                    Clear All
+                </button>
+            </div>
+            <div id="historyList" class="space-y-2">
+                <!-- Items added via JS -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const miKwhInput = document.getElementById('miKwhInput');
+        const kwh100kmInput = document.getElementById('kwh100kmInput');
+        const saveBtn = document.getElementById('saveBtn');
+        const historySection = document.getElementById('historySection');
+        const historyList = document.getElementById('historyList');
+        const clearBtn = document.getElementById('clearBtn');
+
+        const MI_TO_KM_CONSTANT = 62.1371192;
+
+        function updateFromMiKwh() {
+            const val = parseFloat(miKwhInput.value);
+            if (!isNaN(val) && val > 0) {
+                const result = MI_TO_KM_CONSTANT / val;
+                kwh100kmInput.value = result.toFixed(2);
+            } else {
+                kwh100kmInput.value = '';
+            }
+        }
+
+        function updateFromKwh100km() {
+            const val = parseFloat(kwh100kmInput.value);
+            if (!isNaN(val) && val > 0) {
+                const result = MI_TO_KM_CONSTANT / val;
+                miKwhInput.value = result.toFixed(2);
+            } else {
+                miKwhInput.value = '';
+            }
+        }
+
+        function saveConversion() {
+            const miVal = miKwhInput.value;
+            const kmVal = kwh100kmInput.value;
+
+            if (!miVal || !kmVal) return;
+
+            // Show section if first item
+            historySection.classList.remove('hidden');
+
+            const item = document.createElement('div');
+            item.className = 'history-item glass-card rounded-2xl p-4 flex justify-between items-center group';
+            
+            const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+            item.innerHTML = `
+                <div class="flex flex-col">
+                    <span class="text-xs text-slate-400 font-medium">${timestamp}</span>
+                    <div class="flex items-center gap-2 mt-1">
+                        <span class="font-bold text-slate-700">${miVal}</span>
+                        <span class="text-xs text-slate-400">mi/kWh</span>
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                        </svg>
+                        <span class="font-bold text-blue-600">${kmVal}</span>
+                        <span class="text-xs text-slate-400">kWh/100km</span>
+                    </div>
+                </div>
+                <button onclick="this.parentElement.remove(); checkEmpty();" class="opacity-0 group-hover:opacity-100 p-2 text-slate-300 hover:text-red-500 transition-all">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            `;
+
+            historyList.prepend(item);
+        }
+
+        function checkEmpty() {
+            if (historyList.children.length === 0) {
+                historySection.classList.add('hidden');
+            }
+        }
+
+        clearBtn.addEventListener('click', () => {
+            historyList.innerHTML = '';
+            checkEmpty();
+        });
+
+        miKwhInput.addEventListener('input', updateFromMiKwh);
+        kwh100kmInput.addEventListener('input', updateFromKwh100km);
+        saveBtn.addEventListener('click', saveConversion);
+    </script>
+</body>
+</html>
