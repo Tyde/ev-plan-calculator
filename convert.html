@@ -5,6 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>EV Efficiency Converter</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap');
         
@@ -113,6 +116,20 @@
             </div>
         </div>
 
+        <!-- Plot Section -->
+        <div class="glass-card rounded-3xl p-6 space-y-4">
+            <div class="flex items-center justify-between">
+                <h2 class="text-sm font-bold text-slate-500 uppercase tracking-wider">Efficiency Curve</h2>
+                <button id="resetZoomBtn" class="text-xs text-blue-500 hover:text-blue-600 font-medium px-3 py-1 rounded-lg hover:bg-blue-50 transition-colors">
+                    Reset Zoom
+                </button>
+            </div>
+            <div class="bg-white rounded-2xl p-4">
+                <canvas id="efficiencyChart"></canvas>
+            </div>
+            <p class="text-xs text-slate-400 text-center italic">Drag rectangle to zoom • Shift+Drag to pan • Scroll wheel to zoom</p>
+        </div>
+
         <!-- History Section -->
         <div id="historySection" class="hidden space-y-4">
             <div class="flex items-center justify-between px-2">
@@ -136,6 +153,138 @@
         const clearBtn = document.getElementById('clearBtn');
 
         const MI_TO_KM_CONSTANT = 62.1371192;
+
+        // Generate data points for the chart
+        function generateChartData() {
+            const data = [];
+            // Generate points from 5 to 40 kWh/100km
+            for (let kwh = 5; kwh <= 40; kwh += 0.5) {
+                const miKwh = MI_TO_KM_CONSTANT / kwh;
+                data.push({ x: kwh, y: miKwh });
+            }
+            return data;
+        }
+
+        // Create the chart
+        const ctx = document.getElementById('efficiencyChart').getContext('2d');
+        const efficiencyChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                datasets: [{
+                    label: 'Efficiency Curve',
+                    data: generateChartData(),
+                    borderColor: 'rgb(59, 130, 246)',
+                    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                    borderWidth: 2,
+                    pointRadius: 0,
+                    pointHoverRadius: 6,
+                    pointHoverBackgroundColor: 'rgb(59, 130, 246)',
+                    tension: 0.4,
+                    fill: true
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: true,
+                aspectRatio: 1.5,
+                interaction: {
+                    intersect: false,
+                    mode: 'index'
+                },
+                scales: {
+                    x: {
+                        type: 'linear',
+                        title: {
+                            display: true,
+                            text: 'Consumption (kWh/100km)',
+                            font: {
+                                size: 12,
+                                weight: 'bold'
+                            },
+                            color: '#64748b'
+                        },
+                        grid: {
+                            color: 'rgba(148, 163, 184, 0.1)'
+                        },
+                        ticks: {
+                            color: '#64748b'
+                        }
+                    },
+                    y: {
+                        title: {
+                            display: true,
+                            text: 'Efficiency (mi/kWh)',
+                            font: {
+                                size: 12,
+                                weight: 'bold'
+                            },
+                            color: '#64748b'
+                        },
+                        grid: {
+                            color: 'rgba(148, 163, 184, 0.1)'
+                        },
+                        ticks: {
+                            color: '#64748b'
+                        }
+                    }
+                },
+                plugins: {
+                    legend: {
+                        display: false
+                    },
+                    tooltip: {
+                        backgroundColor: 'rgba(15, 23, 42, 0.9)',
+                        padding: 12,
+                        titleFont: {
+                            size: 13
+                        },
+                        bodyFont: {
+                            size: 12
+                        },
+                        callbacks: {
+                            label: function(context) {
+                                return [
+                                    `${context.parsed.y.toFixed(2)} mi/kWh`,
+                                    `${context.parsed.x.toFixed(2)} kWh/100km`
+                                ];
+                            }
+                        }
+                    },
+                    zoom: {
+                        zoom: {
+                            wheel: {
+                                enabled: true,
+                                speed: 0.1
+                            },
+                            pinch: {
+                                enabled: true
+                            },
+                            drag: {
+                                enabled: true,
+                                backgroundColor: 'rgba(59, 130, 246, 0.2)',
+                                borderColor: 'rgb(59, 130, 246)',
+                                borderWidth: 2
+                            },
+                            mode: 'xy'
+                        },
+                        pan: {
+                            enabled: true,
+                            mode: 'xy',
+                            modifierKey: 'shift'
+                        },
+                        limits: {
+                            x: { min: 5, max: 40 },
+                            y: { min: 1.5, max: 12.5 }
+                        }
+                    }
+                }
+            }
+        });
+
+        // Reset zoom button
+        document.getElementById('resetZoomBtn').addEventListener('click', () => {
+            efficiencyChart.resetZoom();
+        });
 
         function updateFromMiKwh() {
             const val = parseFloat(miKwhInput.value);
